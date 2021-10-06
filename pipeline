@@ -1,0 +1,46 @@
+pipeline {
+    agent any
+    environment {
+        dockerImage = ''
+        registry = 'kepz47/app'
+        registryCredential = 'dockerhub_id'
+        containerName='appy'
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout([$class: 'GitSCM', branches: [[name: '**']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[url: 'https://github.com/KEPZ/py_pipeline']]])
+            }
+        }
+        stage('Build docker image') {
+            steps {
+                script {
+                    dockerImage = docker.build registry
+                }
+            }
+        }
+        stage('Uploading docker image') {
+            steps {
+                script {
+                    docker.withRegistry('', registryCredential) {
+                        dockerImage.push()
+                    }
+                }
+            }
+        }
+        stage('Remove old containers') {
+            steps {
+                sh("docker ps -f name=$containerName -q | xargs -r docker stop")
+                sh("docker ps -af name=$containerName -q | xargs -r docker rm")
+            }
+        }
+        stage('Docker run') {
+            steps {
+                script {
+                    dockerImage.run("-p 5000:5000 --rm --name $containerName")
+                }
+            }
+        }
+    }
+}
+
